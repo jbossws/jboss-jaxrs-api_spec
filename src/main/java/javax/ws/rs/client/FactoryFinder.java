@@ -60,6 +60,7 @@ import java.util.logging.Logger;
 final class FactoryFinder {
 
     private static final Logger LOGGER = Logger.getLogger(FactoryFinder.class.getName());
+    private static final String JBOSS_JAXRS_CLIENT_MODULE = "org.jboss.ws.jaxrs-client";
 
     private FactoryFinder() {
         // prevents instantiation
@@ -198,11 +199,46 @@ final class FactoryFinder {
                     + " from a system property", se);
         }
 
+        ClassLoader moduleClassLoader = null;
+        try {
+           Class<?> moduleClass = Class.forName("org.jboss.modules.Module");
+           Class<?> moduleIdentifierClass = Class.forName("org.jboss.modules.ModuleIdentifier");
+           Class<?> moduleLoaderClass = Class.forName("org.jboss.modules.ModuleLoader");
+           Object moduleLoader = moduleClass.getMethod("getBootModuleLoader").invoke(null);
+           Object moduleIdentifier = moduleIdentifierClass.getMethod("create", String.class).invoke(null, JBOSS_JAXRS_CLIENT_MODULE);
+           Object module = moduleLoaderClass.getMethod("loadModule", moduleIdentifierClass).invoke(moduleLoader, moduleIdentifier);
+           moduleClassLoader = (ClassLoader)moduleClass.getMethod("getClassLoader").invoke(module);
+        } catch (ClassNotFoundException e) {
+           //ignore, JBoss Modules might not be available at all
+        } catch (Exception e) {
+        	LOGGER.log(Level.FINER, "Failed to load service " + factoryId
+                    + " using JBoss Module " + JBOSS_JAXRS_CLIENT_MODULE, e);
+        }
+        if (moduleClassLoader != null) {
+           try {
+              InputStream is = moduleClassLoader.getResourceAsStream(serviceId);
+          
+              if( is!=null ) {
+                  BufferedReader rd =
+                      new BufferedReader(new InputStreamReader(is, "UTF-8"));
+          
+                  String factoryClassName = rd.readLine();
+                  rd.close();
+
+                  if (factoryClassName != null &&
+                      ! "".equals(factoryClassName)) {
+                      return newInstance(factoryClassName, moduleClassLoader);
+                  }
+              }
+           } catch( Exception ex ) {
+           }
+        }
+
         if (fallbackClassName == null) {
             throw new ClassNotFoundException(
                     "Provider for " + factoryId + " cannot be found", null);
         }
-
+        
         return newInstance(fallbackClassName, classLoader);
     }
 }
