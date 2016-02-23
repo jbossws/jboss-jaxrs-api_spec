@@ -46,6 +46,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -201,13 +203,39 @@ final class FactoryFinder {
 
         ClassLoader moduleClassLoader = null;
         try {
-           Class<?> moduleClass = Class.forName("org.jboss.modules.Module");
-           Class<?> moduleIdentifierClass = Class.forName("org.jboss.modules.ModuleIdentifier");
-           Class<?> moduleLoaderClass = Class.forName("org.jboss.modules.ModuleLoader");
-           Object moduleLoader = moduleClass.getMethod("getBootModuleLoader").invoke(null);
-           Object moduleIdentifier = moduleIdentifierClass.getMethod("create", String.class).invoke(null, JBOSS_JAXRS_CLIENT_MODULE);
-           Object module = moduleLoaderClass.getMethod("loadModule", moduleIdentifierClass).invoke(moduleLoader, moduleIdentifier);
-           moduleClassLoader = (ClassLoader)moduleClass.getMethod("getClassLoader").invoke(module);
+           final Class<?> moduleClass = Class.forName("org.jboss.modules.Module");
+           final Class<?> moduleIdentifierClass = Class.forName("org.jboss.modules.ModuleIdentifier");
+           final Class<?> moduleLoaderClass = Class.forName("org.jboss.modules.ModuleLoader");
+           final Object moduleLoader;
+           final SecurityManager sm = System.getSecurityManager();
+           if (sm == null) {
+               moduleLoader = moduleClass.getMethod("getBootModuleLoader").invoke(null);
+           } else {
+               try {
+                   moduleLoader = AccessController.doPrivileged(new PrivilegedExceptionAction<Object>() {
+                       public Object run() throws Exception {
+                           return moduleClass.getMethod("getBootModuleLoader").invoke(null);
+                       }
+                   });
+               } catch (PrivilegedActionException pae) {
+                   throw (RuntimeException) pae.getException();
+               }
+           }
+           final Object moduleIdentifier = moduleIdentifierClass.getMethod("create", String.class).invoke(null, JBOSS_JAXRS_CLIENT_MODULE);
+           final Object module = moduleLoaderClass.getMethod("loadModule", moduleIdentifierClass).invoke(moduleLoader, moduleIdentifier);
+           if (sm == null) {
+               moduleClassLoader = (ClassLoader)moduleClass.getMethod("getClassLoader").invoke(module);
+           } else {
+               try {
+                   moduleClassLoader = AccessController.doPrivileged(new PrivilegedExceptionAction<ClassLoader>() {
+                       public ClassLoader run() throws Exception {
+                           return (ClassLoader)moduleClass.getMethod("getClassLoader").invoke(module);
+                       }
+                   });
+               } catch (PrivilegedActionException pae) {
+                   throw (RuntimeException) pae.getException();
+               }
+           }
         } catch (ClassNotFoundException e) {
            //ignore, JBoss Modules might not be available at all
         } catch (Exception e) {
