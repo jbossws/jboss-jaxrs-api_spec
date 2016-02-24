@@ -31,9 +31,9 @@
   </licenses>
 
   <scm>
-    <connection>scm:git:git@github.com:jboss/jboss-jaxrs-api_spec.git</connection>
-    <developerConnection>scm:git:git@github.com:jboss/jboss-jaxrs-api_spec.git</developerConnection>
-    <url>https://github.com/jboss/jboss-jaxrs-api_spec</url>
+    <connection>scm:git:git@github.com:jbossws/jboss-jaxrs-api_spec.git</connection>
+    <developerConnection>scm:git:git@github.com:jbossws/jboss-jaxrs-api_spec.git</developerConnection>
+    <url>https://github.com/jbossws/jboss-jaxrs-api_spec</url>
     <tag>HEAD</tag>
   </scm>
 
